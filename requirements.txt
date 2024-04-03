@@ -1,0 +1,4 @@
+torchvision
+diffusers
+accelerate
+tensorboardX
