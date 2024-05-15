@@ -54,7 +54,19 @@ def get_vae(repo:str) -> Model:
   if arch == 'VQModel':
     return VQDiffusionPipeline.from_pretrained(repo)
   arch_cls: ModelMixin = globals()[arch]
-  return arch_cls.from_pretrained(repo)
+  
+  repo_first = repo.split('/')[0]
+  repo_second = repo.split('/')[1]
+  model_itself_name = f'models--{repo_first}--{repo_second}'
+  
+  if not os.path.exists(os.path.join(WEIGHT_PATH, model_itself_name)):
+    return arch_cls.from_pretrained(repo)
+  
+  model_path = os.path.join(WEIGHT_PATH, model_itself_name, 'snapshots')
+  items = os.listdir(model_path)
+  final_path = os.path.join(model_path, items[0])
+  
+  return arch_cls.from_pretrained(final_path)
 
 
 if __name__ == '__main__':

@@ -14,6 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import Module as Model
+import numpy as np
 
 torch.set_float32_matmul_precision('high')
 
@@ -26,10 +27,18 @@ if device == 'cuda':
 BASE_PATH = Path(__file__).parent.absolute()
 DATA_PATH = BASE_PATH / 'data'
 LOG_PATH = BASE_PATH / 'log'
-
+WEIGHT_PATH = BASE_PATH / 'weights'
 
 def param_cnt(model:Model, only_trainable:bool=False) -> int:
   return sum([p.numel() for p in model.parameters() if (not only_trainable or p.requires_grad)])
+
+
+def stack_numpy(L1_NP, l1_np):
+  if L1_NP is None:
+    L1_NP = l1_np
+  else:
+    L1_NP = np.vstack((L1_NP, l1_np))
+  return L1_NP
 
 
 def get_envvar(name:str, type:type=str, default:Any=None) -> Any:

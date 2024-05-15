@@ -37,7 +37,7 @@ def gen_batch_data(model:Model, dataset:Dataset, steps:int=20, eps:float=8/255, 
 
 
 def run(args):
-  ''' Log '''
+  ''' Log '''#初始化日志
   exp_name = args.exp_name or get_exp_name()
   log_dp = LOG_PATH / exp_name
   sw = SummaryWriter(log_dp)
@@ -46,9 +46,10 @@ def run(args):
       'cmd': ' '.join(sys.argv),
       'args': vars(args),
     }
-    json.dump(hp, fh, indent=2, ensure_ascii=False)
+    _cvt = lambda v: str(v) if isinstance(v, Path) else v
+    json.dump(hp, fh, indent=2, ensure_ascii=False, default=_cvt)
 
-  ''' Model & Optim '''
+  ''' Model & Optim '''#初始化模型和优化器
   tmodel = get_clf(args.tmodel)
   xmodel = get_vae(args.xmodel)
   print('[model]')
@@ -59,13 +60,13 @@ def run(args):
 
   optim = Adam(xmodel.parameters(), lr=args.lr)
 
-  ''' Monkey-Patching model forward_fn '''
+  ''' Mpkey-Patching model forwards '''#对正向传播的样本做预处理(imagenet标准化和clamp到0-1之间)
   tmodel.forward_original = tmodel.forward
   tmodel.forward = lambda X: tmodel.forward_original(normalize_imagenet_1k(X))
   xmodel.forward_original = xmodel.forward
   xmodel.forward = lambda X: xmodel.forward_original(X).sample.clamp(0.0, 1.0)
 
-  ''' Ckpt & Bookeep '''
+  ''' Ckpt '''#加载模型参数
   if args.load:
     ckpt = torch.load(args.load, map_location=device)
     xmodel.load_state_dict(ckpt['model'])
@@ -84,6 +85,10 @@ def run(args):
   dataset = ImageNet_1k(DATA_PATH)
   data_gen = gen_batch_data(tmodel, dataset, args.steps, args.eps, args.alpha)
 
+  ''' Bookkeep '''
+  loss_wv = ValueWindow(nlen=20)
+  asr_wv  = ValueWindow(nlen=20)
+
   ''' Train '''
   try:
     for epochs in range(epochs, args.epochs+1):
@@ -98,7 +103,7 @@ def run(args):
         optim.zero_grad()
         fmap_AX = xmodel(AX)
         fmap_X  = xmodel(X)
-        loss = F.huber_loss(fmap_AX, fmap_X)
+        loss = F.huber_loss(fmap_AX, fmap_X) * args.weight_balance + F.huber_loss(fmap_X, X)
         loss.backward()
         optim.step()
 
@@ -163,6 +168,7 @@ if __name__ == '__main__':
   parser.add_argument('--plot_interval',    type=int,  default=100)
   parser.add_argument('--ckpt_interval',    type=int,  default=2000)
   parser.add_argument('--exp_name', help='assign experiment name')
+  parser.add_argument('-W', '--weight_balance', type=float, default=1.0, help='balance weight for loss')
   args, _ = parser.parse_known_args()
 
   run(args)
